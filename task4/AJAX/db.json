@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "id": 1,
+      "title": "Креатинчик",
+      "body": "Это белое вещество родом из колумбии поможет вам проводить более эффективные тренировки)))",
+      "img": "https://tamadkala.com/wp-content/uploads/2021/11/Sorbitol-1024x1024.png",
+      "code": "228116",
+      "deliever": "ООО КолумбийскийКреатин"
+    }
+  ],
+  "creatorInfo": {
+    "name": "Пожарский Егор",
+    "group": "6409",
+    "repo": "https://github.com/EgorPozharskiy/OLEG_ODOBRIL"
+  }
+}
