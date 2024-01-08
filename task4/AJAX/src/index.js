@@ -1,186 +1,362 @@
-let isEdit = false;
+const isEdit = false;
 const form = document.querySelector('.info_form');
 const header = document.querySelector('.header h3');
-const spinner = document.querySelector('.spinner')
-async function creatorInfo(){
-  const res = await fetch(' http://localhost:3000/creatorInfo');
-  const data = await res.json();
-  header.textContent = `${data.name} ${data.group} ${data.repo}`
-}
-function clearAllItems(){
-  return getItems().then((data) => data.forEach((res) => deleteItemF(res.id)))
-}
-async function getItems(){
-  spinner.style.display = 'flex';
-  const res = await fetch('http://localhost:3000/items');
-  const data = await res.json();
-  spinner.style.display = 'none';
-  return data;
-}
-async function getItem(id){
-  spinner.style.display = 'flex';
-  const res = await fetch(`http://localhost:3000/items/${id}`);
-  const data = res.json();
-  spinner.style.display = 'none';
-  return data;
-}
-async function deleteItemF(id){
-  spinner.style.display = 'flex';
-  await fetch(`http://localhost:3000/items/${id}`,{
-    method: 'DELETE'
-  });
-  spinner.style.display = 'none';
-}
-async function editCard(data){
-  spinner.style.display = 'flex';
-  await fetch(`http://localhost:3000/items/${data.id}`, {
-    method:'PATCH',
-    headers: {
-      'Content-Type': 'application/json; charset=UTF-8'
-  },
-  body: JSON.stringify(data)
-  }).then((res) =>  {
-    spinner.style.display = 'none';
-    return res.json()}).catch((e) => console.error(e));
-}
-async function addItem(data){
-  spinner.style.display = 'flex';
-  const res = await fetch('http://localhost:3000/items', {
-    method:'POST',
-    headers: {
-      'Content-Type': 'application/json; charset=UTF-8'
-  },
-  body:JSON.stringify(data)
-  }).then((res) => {
-    spinner.style.display = 'none';
-    return res.json()}).catch((e) => console.error(e));
-  return res;
-}
-function editItem(data, id) {
-    isEdit = true;
-    const inputs = form.querySelectorAll("input");
-    inputs.forEach((item) => (item.value = data[item.id]));
-    form.addEventListener('submit', (evt) => {
-        evt.preventDefault();
-        const obj = {}; 
-        inputs.forEach((item) => (obj[item.id] = item.value));
-        obj.id = id;  
-        editCard(obj);
-        inputs.forEach((item) => (item.value = ""));
-        const itemToChange = document.getElementById(data.id);
-        itemToChange.querySelector('img').src = obj.img;
-        itemToChange.querySelector('.card-title').textContent = obj.title;
-        itemToChange.querySelector('.card-text').textContent = `Описание: ${obj.body}`;
-        itemToChange.querySelector('.card-text-deliever').textContent = `Поставщик: ${obj.deliever}`;
-        itemToChange.querySelector('.id').textContent = `Код товара: ${obj.id}`;
-        isEdit = false;
-    }, {once:true})
-  }
-  function deleteItem(id) {
-    const item = document.getElementById(id);
-    deleteItemF(id);
-    item.remove();
-  }
-  const createButton = (isEdit, title, img, body, id) => {
-    if(isEdit){
-        const editBtn = document.createElement("button");
-        editBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        getItem(id).then((res) => editItem(res, id))
-        });
-        editBtn.append(document.createTextNode("Edit"));
-        editBtn.classList.add('btn');
-        editBtn.classList.add('btn-primary');
-        return editBtn;
-    }
-    else{
-        const deleteBtn = document.createElement("button");
-        deleteBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        deleteItem(id);
-        });
-        deleteBtn.append(document.createTextNode("Delete"));
-        deleteBtn.classList.add('btn');
-        deleteBtn.classList.add('btn-danger');
-        return deleteBtn;
-    }
-    
-  }
-function addCard({ title, img, body, id, deliever, code}) {
-    const container = document.createElement("div");
-    container.style.width = '18rem';
-    container.classList.add("card");
-    container.id = id;
-    //create IMG
-    const imgElement = document.createElement('img');
-    imgElement.classList.add('card-img-top');
-    imgElement.src = img;
-    imgElement.style.height = "50%";
-    imgElement.style.width = "100%";
-    //create body
-    const info = document.createElement("div");
-    info.classList.add("card-body");
-    //title
-    const titleContainer = document.createElement("h5");
-    titleContainer.classList.add("card-title");
-    titleContainer.append(document.createTextNode(title));
-    //body text
-    const bodyContainer = document.createElement("p");
-    bodyContainer.classList.add("card-text");
-    bodyContainer.append(document.createTextNode(`Описание: ${body}`));
-    //delivere
-    const providerContainer = document.createElement("p");
-    providerContainer.classList.add("card-text-deliever");
-    providerContainer.append(document.createTextNode(`Поставщик: ${deliever}`));
-    //id
-    const idContainer = document.createElement("p");
-    idContainer.classList.add("id");
-    idContainer.append(document.createTextNode(`Код товара: ${code}`));
+const spinner = document.querySelector('.spinner');
 
-    const buttonContainer = document.createElement("div");
-    const editBtn = createButton(true, title, img, body, id, deliever);
-    const deleteBtn = createButton(false, title, img, body, id, deliever);
-    
-    info.append(titleContainer);
-    info.append(bodyContainer);
-    info.append(providerContainer);
-    info.append(idContainer);
-    buttonContainer.append(editBtn);
-    buttonContainer.append(deleteBtn);
-    container.append(imgElement);
-    container.append(info);
-    container.append(buttonContainer);
-    return container;
+const addItemModal = new bootstrap.Modal(document.getElementById('addItemModal'));
+const editItemModal = new bootstrap.Modal(document.getElementById('editItemModal'));
+
+const editTitleInput = document.getElementById('editTitle');
+const editBodyInput = document.getElementById('editBody');
+const editImgInput = document.getElementById('editImg');
+const editCodeInput = document.getElementById('editCode');
+const editDelieverInput = document.getElementById('editDeliever');
+
+const formEdit = document.getElementById('formEdit');
+
+let currentEditId = null; // Глобальная переменная для хранения ID редактируемого товара
+
+async function creatorInfo() {
+  try {
+    spinner.style.display = 'flex';
+    const res = await fetch('http://localhost:3000/creatorInfo');
+    const data = await res.json();
+    header.textContent = `${data.name} ${data.group} ${data.repo}`;
+  } catch (error) {
+    console.error(error);
+  } finally {
+    spinner.style.display = 'none';
   }
-(function onLoad(){
-  const itemsContainer = window.document.querySelector(".info_items");
-  getItems().then((items) => items.map((item) => itemsContainer.append(addCard(item)))); 
-}());
-creatorInfo();
-function createItem(obj){
-  const cardsContainer = window.document.querySelector(".info_items");
-  addItem(obj).then((res) => cardsContainer.append(addCard(res)));
 }
+
+async function clearAllItems() {
+  try {
+    const data = await getItems();
+    spinner.style.display = 'flex';
+    await Promise.all(data.map((item) => deleteItemF(item.id)));
+  } catch (error) {
+    console.error(error);
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+async function getItems() {
+  try {
+    spinner.style.display = 'flex';
+    const res = await fetch('http://localhost:3000/items');
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error(error);
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+async function getItem(id) {
+  try {
+    spinner.style.display = 'flex';
+    const res = await fetch(`http://localhost:3000/items/${id}`);
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error(error);
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+async function deleteItemF(id) {
+  try {
+    spinner.style.display = 'flex';
+    await fetch(`http://localhost:3000/items/${id}`, {
+      method: 'DELETE',
+    });
+  } catch (error) {
+    console.error(error);
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+async function editCard(data) {
+  try {
+    spinner.style.display = 'flex';
+    await fetch(`http://localhost:3000/items/${data.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: JSON.stringify(data),
+    });
+  } catch (error) {
+    console.error(error);
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+async function addItem(data) {
+  try {
+    spinner.style.display = 'flex';
+    const res = await fetch('http://localhost:3000/items', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  } catch (error) {
+    console.error(error);
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+function showErrorMessage(message) {
+  const errorPopup = document.createElement('div');
+  errorPopup.classList.add('error-popup');
+  errorPopup.textContent = message;
+  document.body.appendChild(errorPopup);
+
+  setTimeout(() => {
+    errorPopup.remove();
+  }, 2000);
+}
+
+
+
+function openEditModal(id) {
+  getItem(id).then((item) => {
+    editTitleInput.value = item.title;
+    editBodyInput.value = item.body;
+    editImgInput.value = item.img;
+    editCodeInput.value = item.code;
+    editDelieverInput.value = item.deliever;
+    
+    currentEditId = id; 
+    editItemModal.show();
+  }).catch(error => {
+    console.error('Не удалось получить данные товара:', error);
+  });
+}
+
+
+async function editItem(data, id) {
+  try {
+    spinner.style.display = 'flex';
+
+    data.title = editTitleInput.value;
+    data.body = editBodyInput.value;
+    data.img = editImgInput.value;
+    data.code = editCodeInput.value;
+    data.deliever = editDelieverInput.value;
+
+    const response = await fetch(`http://localhost:3000/items/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (response.status === 200) {
+      const itemToChange = document.getElementById(id);
+      itemToChange.querySelector('img').src = data.img;
+      itemToChange.querySelector('.card-title').textContent = data.title;
+      itemToChange.querySelector('.card-text').textContent = `Описание: ${data.body}`;
+      itemToChange.querySelector('.card-text-deliever').textContent = `Поставщик: ${data.deliever}`;
+      itemToChange.querySelector('.id').textContent = `Код товара: ${data.code}`;
+
+      editItemModal.hide();
+    } else {
+      console.error('Ошибка при редактировании товара:', response.statusText);
+    }
+  } catch (error) {
+    console.error(error);
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+
+
+function deleteItem(id) {
+  const item = document.getElementById(id);
+  deleteItemF(id);
+  item.remove();
+}
+
+const createButton = (isEdit, id) => {
+  const button = document.createElement('button');
+  button.classList.add('btn');
+
+  if (isEdit) {
+    button.classList.add('btn-primary');
+    button.textContent = 'Edit';
+    button.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const item = await getItem(id);
+      editItem(item, id);
+
+      openEditModal();
+    });
+  } else {
+    button.classList.add('btn-danger');
+    button.textContent = 'Delete';
+    button.addEventListener('click', (e) => {
+      e.preventDefault();
+      deleteItem(id);
+    });
+  }
+
+  return button;
+};
+
+
+
+
+function addCard({ title, img, body, id, deliever, code }) {
+  const container = document.createElement('div');
+  container.style.width = '18rem';
+  container.classList.add('card');
+  container.id = id;
+
+  const imgElement = document.createElement('img');
+  imgElement.classList.add('card-img-top');
+  imgElement.src = img;
+  imgElement.style.height = '50%';
+  imgElement.style.width = '100%';
+
+  const info = document.createElement('div');
+  info.classList.add('card-body');
+
+  const titleContainer = document.createElement('h5');
+  titleContainer.classList.add('card-title');
+  titleContainer.textContent = title;
+
+  const bodyContainer = document.createElement('p');
+  bodyContainer.classList.add('card-text');
+  bodyContainer.textContent = `Описание: ${body}`;
+
+  const providerContainer = document.createElement('p');
+  providerContainer.classList.add('card-text-deliever');
+  providerContainer.textContent = `Поставщик: ${deliever}`;
+
+  const idContainer = document.createElement('p');
+  idContainer.classList.add('id');
+  idContainer.textContent = `Код товара: ${code}`;
+
+  const buttonContainer = document.createElement('div');
+  const editBtn = createButton(true, id);
+  const deleteBtn = createButton(false, id);
+
+  info.append(titleContainer);
+  info.append(bodyContainer);
+  info.append(providerContainer);
+  info.append(idContainer);
+  buttonContainer.append(editBtn);
+  buttonContainer.append(deleteBtn);
+  container.append(imgElement);
+  container.append(info);
+  container.append(buttonContainer);
+  return container;
+}
+
+(async function onLoad() {
+  const itemsContainer = document.querySelector('.info_items');
+  try {
+    const items = await getItems();
+    items.forEach((item) => itemsContainer.append(addCard(item)));
+  } catch (error) {
+    console.error(error);
+  }
+})();
+
+creatorInfo();
+
+async function createItem(obj) {
+  try {
+    const cardsContainer = document.querySelector('.info_items');
+    const res = await addItem(obj);
+    cardsContainer.append(addCard(res));
+  } catch (error) {
+    console.error(error);
+  }
+}
+
 const toDefault = document.getElementById('defaultClick');
 toDefault.addEventListener('click', () => {
-   const data = {
-    "id": 1,
-    "title": "Креатинчик",
-    "body": "Это белое вещество родом из колумбии поможет вам проводить более эффективные тренировки)))",
-    "img": "https://tamadkala.com/wp-content/uploads/2021/11/Sorbitol-1024x1024.png",
-    "code": "228116",
-    "deliever": "ООО КолумбийскийКреатин"
+  const data = {
+    id: 1,
+    title: 'Креатинчик',
+    body: 'Это белое вещество родом из колумбии поможет вам проводить более эффективные тренировки)))',
+    img: 'https://tamadkala.com/wp-content/uploads/2021/11/Sorbitol-1024x1024.png',
+    code: '228116',
+    deliever: 'ООО КолумбийскийКреатин',
   };
 
-  clearAllItems().then(() => addItem(data).then(() => window.location.reload()))
+  clearAllItems().then(() => createItem(data).then(() => window.location.reload()));
 });
-form.addEventListener("submit", (evt) => {
-    evt.preventDefault();
-    if (!isEdit) {
-      const obj = {};
-      const inputs = evt.target.querySelectorAll("input");
-      inputs.forEach((item) => (obj[item.id] = item.value));
+
+form.addEventListener('submit', async (evt) => {
+  evt.preventDefault();
+  if (!isEdit) {
+    const obj = {};
+    const inputs = evt.target.querySelectorAll('input');
+    let hasEmptyFields = false; 
+
+    inputs.forEach((item) => {
+      obj[item.id] = item.value;
+      if (item.value.trim() === '') {
+        hasEmptyFields = true;
+      }
+    });
+
+    if (hasEmptyFields) {
+      showErrorMessage('Заполните все поля перед добавлением.');
+    } else {
       createItem(obj);
-      inputs.forEach((item) => (item.value = ""));
+      inputs.forEach((item) => (item.value = ''));
+
+      addItemModal.hide();
     }
-  });
+  }
+});
+
+formEdit.addEventListener('submit', async (evt) => {
+  evt.preventDefault();
+
+  const updatedData = {
+    title: editTitleInput.value,
+    body: editBodyInput.value,
+    img: editImgInput.value,
+    code: editCodeInput.value,
+    deliever: editDelieverInput.value
+  };
+
+  editCard(updatedData, currentEditId)
+    .then(updatedItem => {
+      const itemToChange = document.getElementById(currentEditId);
+      if (itemToChange) {
+        itemToChange.querySelector('.card-title').textContent = updatedData.title;
+        itemToChange.querySelector('.card-text').textContent = `Описание: ${updatedData.body}`;
+        itemToChange.querySelector('.card-text-deliever').textContent = `Поставщик: ${updatedData.deliever}`;
+        itemToChange.querySelector('.card-img-top').src = updatedData.img;
+      }
+      editItemModal.hide(); 
+    })
+    .catch(error => {
+      console.error('Ошибка при обновлении товара:', error);
+      showErrorMessage('Ошибка при обновлении товара');
+    });
+});
+
+
+
+const openModalButton = document.getElementById('openModalButton');
+openModalButton.addEventListener('click', () => {
+  addItemModal.show();
+});
